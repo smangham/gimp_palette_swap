@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=R0913,R0917
 
+from abc import ABC, abstractmethod
 import sys
 from typing import List
 
@@ -32,22 +34,80 @@ import palette_swap.palette_to_layer
 # I really don't understand why you can't register two plugin objects?
 # This whole plugin setup is very bizarre.
 
-class PaletteSwapLinearMetaPlugin:
+class MetaPlugin(ABC):
+    """
+    The 'meta-plugin' that describes the interface for the sub-plugins.
+
+    I just wanted to type hint this but it turns out abstract class properties are
+    scheduled for deprecation, so the code looks like Java now.
+    """
+    @classmethod
+    @abstractmethod
+    def get_name(cls) -> str:  # pylint: disable=C0116
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def get_menu_label(cls) -> str:  # pylint: disable=C0116
+        raise NotImplementedError
+
+    @staticmethod
+    def get_menu_path() -> str:  # pylint: disable=C0116
+        return "<Image>/Filters/Map/Palette Swap"
+
+    @classmethod
+    @abstractmethod
+    def get_documentation(cls) -> str:  # pylint: disable=C0116
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def get_dialog_fill(cls) -> list[str]:  # pylint: disable=C0116
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def arguments(
+        cls: type, procedure: Gimp.ImageProcedure
+    ):    # pylint: disable=C0116
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def run(
+        cls, procedure, run_mode, image, drawables, config, run_data
+    ):
+        raise NotImplementedError
+
+
+class PaletteSwapLinearMetaPlugin(MetaPlugin):
     """
     Swaps the current layer from a source palette to a target palette
     """
-    name: str = 'ttt-palette-swap-linear'
-    menu_label: str = "Swap from old to new palette..."
-    menu_path: str = "<Image>/Filters/Map/Palette Swap"
-    documentation: str = "Maps the colours from 1-pixel 'old' palette layer to an equivalent 'new' layer,\nthen replaces all the 'old' colours in the current layer with the corresponding 'new' colours."
-    dialog_fill: List[str] = [
-        'layer-palette-old',
-        'layer-palette-new',
-    ]
+    @classmethod
+    def get_name(cls) -> str:
+        return 'ttt-palette-swap-linear'
+
+    @classmethod
+    def get_menu_label(cls) -> str:
+        return "Swap from old to new palette..."
+
+    @classmethod
+    def get_documentation(cls) -> str:
+        return "Maps the colours from 1-pixel 'old' palette layer to an equivalent 'new' layer," \
+            + "\nthen replaces all the 'old' colours in the current layer" \
+            + " with the corresponding 'new' colours."
+
+    @classmethod
+    def get_dialog_fill(cls) -> list[str]:
+        return [
+            'layer-palette-old',
+            'layer-palette-new',
+        ]
 
     @classmethod
     def arguments(
-            cls: 'PaletteSwapLinearMetaPlugin',
+            cls: type['PaletteSwapLinearMetaPlugin'],
             procedure: Gimp.ImageProcedure
     ):
         """
@@ -73,7 +133,7 @@ class PaletteSwapLinearMetaPlugin:
 
     @classmethod
     def run(
-            cls, procedure, run_mode, image, drawables, config, run_data
+            cls, procedure, run_mode, image, drawables, config, run_data  # pylint: disable=W0613
     ):
         """
         The method called when the menu shortcut is run.
@@ -92,18 +152,17 @@ class PaletteSwapLinearMetaPlugin:
         # importlib.reload(palette_swap.palette_swap_linear)
 
         if run_mode == Gimp.RunMode.INTERACTIVE:
-            # print("Starting UI...")
             gi.require_version('Gtk', '3.0')
 
-            GimpUi.init(cls.name)
-            dialog = GimpUi.ProcedureDialog.new(procedure, config, cls.menu_label)
+            GimpUi.init(cls.get_name())
+            dialog = GimpUi.ProcedureDialog.new(procedure, config, cls.get_menu_label())
             dialog.get_label(
-                f'{cls.name}-docs',
-                cls.documentation,
+                f'{cls.get_name()}-docs',
+                cls.get_documentation(),
                 False,
                 False,
             )
-            dialog.fill([f'{cls.name}-docs']+cls.dialog_fill)
+            dialog.fill([f'{cls.get_name()}-docs']+cls.get_dialog_fill())
             if not dialog.run():
                 return procedure.new_return_values(
                     Gimp.PDBStatusType.CANCEL, GLib.Error()
@@ -126,7 +185,6 @@ class PaletteSwapLinearMetaPlugin:
                 Gimp.PDBStatusType.CALLING_ERROR, GLib.Error()
             )
 
-        # print("Running swap...")
         try:
             palette_swap.palette_swap_linear.palette_swap_linear(
                 image,
@@ -134,33 +192,45 @@ class PaletteSwapLinearMetaPlugin:
                 layer_palette_old=layer_palette_old,
                 layer_palette_new=layer_palette_new,
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             Gimp.message(f"{e}")
             return procedure.new_return_values(
                 Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error()
             )
-        # print("Done!")
+
         return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
-class PaletteSwapSimpleMetaPlugin:
+class PaletteSwapSimpleMetaPlugin(MetaPlugin):
     """
     Maps the current layer to the palette auto-detected from another layer.
     """
-    name: str = 'ttt-palette-swap-simple'
-    menu_label: str = "Swap to sample layer's palette..."
-    menu_path: str = "<Image>/Filters/Map/Palette Swap"
-    documentation: str = "Ranks colours in the current layer by brightness,\nranks colours in the sample layer by brightness,\nthen replaces colours colours in the current layer with their equivalent rank in the sample."
-    dialog_fill: List[str] = [
-        'layer-sample',
-        'count-threshold',
-        'include-transparent',
-        'light-first',
-    ]
+    @classmethod
+    def get_name(cls) -> str:
+        return 'ttt-palette-swap-simple'
+
+    @classmethod
+    def get_menu_label(cls) -> str:
+        return "Swap to sample layer's palette..."
+
+    @classmethod
+    def get_documentation(cls) -> str:
+        return "Ranks colours in the current layer by brightness,\n" \
+            + "ranks colours in the sample layer by brightness,\n" \
+            + "then replaces colours colours in the current layer with their equivalent rank in the sample."
+
+    @classmethod
+    def get_dialog_fill(cls) -> list[str]:
+        return [
+            'layer-sample',
+            'count-threshold',
+            'include-transparent',
+            'light-first',
+        ]
 
     @classmethod
     def arguments(
-            cls: 'PaletteSwapSimpleMetaPlugin',
+            cls: type['PaletteSwapSimpleMetaPlugin'],
             procedure: Gimp.ImageProcedure
     ):
         """
@@ -200,7 +270,7 @@ class PaletteSwapSimpleMetaPlugin:
 
     @classmethod
     def run(
-            cls, procedure, run_mode, image, drawables, config, run_data
+            cls, procedure, run_mode, image, drawables, config, run_data  # pylint: disable=W0613
     ):
         """
         The method called when the menu shortcut is run.
@@ -219,25 +289,22 @@ class PaletteSwapSimpleMetaPlugin:
         # importlib.reload(palette_swap.palette_to_layer)
 
         if run_mode == Gimp.RunMode.INTERACTIVE:
-            # print("Starting UI...")
             gi.require_version('Gtk', '3.0')
 
-            GimpUi.init(cls.name)
-            dialog = GimpUi.ProcedureDialog.new(procedure, config, cls.menu_label)
+            GimpUi.init(cls.get_name())
+            dialog = GimpUi.ProcedureDialog.new(procedure, config, cls.get_menu_label())
             dialog.get_label(
-                f'{cls.name}-docs',
-                cls.documentation,
+                f'{cls.get_name()}-docs',
+                cls.get_documentation(),
                 False,
                 False,
             )
-            dialog.fill([f'{cls.name}-docs']+cls.dialog_fill)
+            dialog.fill([f'{cls.get_name()}-docs']+cls.get_dialog_fill())
             if not dialog.run():
                 return procedure.new_return_values(
                     Gimp.PDBStatusType.CANCEL, GLib.Error()
                 )
 
-
-        # print("Running swap...")
         try:
             palette_swap.palette_swap_simple.palette_swap_simple(
                 image,
@@ -247,33 +314,42 @@ class PaletteSwapSimpleMetaPlugin:
                 light_first=config.get_property("light-first"),
                 count_threshold=config.get_property("count-threshold")
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             Gimp.message(f"{e}")
             return procedure.new_return_values(
                 Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error()
             )
 
-        # print("Done!")
         return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
-class PaletteToLayerMetaPlugin:
+class PaletteToLayerMetaPlugin(MetaPlugin):
     """
     Creates a 1-pixel high 'palette' layer from the current layer.
     """
-    name: str = 'ttt-palette-to-layer'
-    menu_label: str = "Create layer from palette..."
-    menu_path: str = "<Image>/Filters/Map/Palette Swap"
-    documentation: str = "Given a layer, creates a 1-pixel high layer that contains the colours within it, sorted by brightness."
-    dialog_fill: List[str] = [
-        'count-threshold',
-        'include-transparent',
-        'layer-name',
-    ]
+    @classmethod
+    def get_name(cls) -> str:
+        return 'ttt-palette-to-layer'
+
+    @classmethod
+    def get_menu_label(cls) -> str:
+        return "Create layer from palette..."
+
+    @classmethod
+    def get_documentation(cls) -> str:
+        return "Given a layer, creates a 1-pixel high layer that contains the colours within it, sorted by brightness."
+
+    @classmethod
+    def get_dialog_fill(cls) -> list[str]:
+        return [
+            'count-threshold',
+            'include-transparent',
+            'layer-name',
+        ]
 
     @classmethod
     def arguments(
-            cls: 'PaletteToLayerMetaPlugin',
+            cls: type['PaletteToLayerMetaPlugin'],
             procedure: Gimp.ImageProcedure
     ):
         """
@@ -325,27 +401,25 @@ class PaletteToLayerMetaPlugin:
         # importlib.reload(palette_swap.palette_to_layer)
 
         if run_mode == Gimp.RunMode.INTERACTIVE:
-            # print("Starting UI...")
             gi.require_version('Gtk', '3.0')
 
-            GimpUi.init(cls.name)
+            GimpUi.init(cls.get_name())
             dialog = GimpUi.ProcedureDialog.new(
-                procedure, config, cls.menu_label
+                procedure, config, cls.get_menu_label()
             )
             dialog.get_label(
-                f'{cls.name}-docs',
-                cls.documentation,
+                f'{cls.get_name()}-docs',
+                cls.get_documentation(),
                 False,
                 False,
             )
-            dialog.fill([f'{cls.name}-docs']+cls.dialog_fill)
+            dialog.fill([f'{cls.get_name()}-docs']+cls.get_dialog_fill())
 
             if not dialog.run():
                 return procedure.new_return_values(
                     Gimp.PDBStatusType.CANCEL, GLib.Error()
                 )
 
-        # print("Running swap...")
         try:
             palette_swap.palette_to_layer.palette_to_layer(
                 image,
@@ -354,30 +428,32 @@ class PaletteToLayerMetaPlugin:
                 count_threshold=config.get_property("count-threshold"),
                 layer_name=config.get_property("layer-name"),
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             Gimp.message(f"{e}")
             return procedure.new_return_values(
                 Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error()
             )
 
-        # print("Done!")
         # do what you want to do, then, in case of success, return:
         return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
-PROCEDURES: dict[str, object] = {
+PROCEDURES: dict[str, type[MetaPlugin]] = {
     'ttt-palette-swap-simple': PaletteSwapSimpleMetaPlugin,
     'ttt-palette-swap-linear': PaletteSwapLinearMetaPlugin,
-    'ttt-palette-to-layer':PaletteToLayerMetaPlugin,
+    'ttt-palette-to-layer': PaletteToLayerMetaPlugin,
 }
 
 
 class PaletteSwapPlugin(Gimp.PlugIn):
+    """
+    Plugin that's actually registered with GIMP, to register the meta-plugins.
+    """
     def do_query_procedures(self) -> List[str]:
         """List the procedures in the plugin"""
         return list(PROCEDURES.keys())
 
-    def do_set_i18n (self, name: str) -> bool:
+    def do_set_i18n (self, name: str) -> bool:  # pylint: disable=W0613
         """No translation for this plugin"""
         return False
 
@@ -391,7 +467,6 @@ class PaletteSwapPlugin(Gimp.PlugIn):
         :param name: The procedure name, from `do_query_procedures`.
         :return: Each individual procedure.
         """
-        # print(f"Creating procedure {name}")
         procedure = Gimp.ImageProcedure.new(
             self,
             name,
@@ -400,19 +475,17 @@ class PaletteSwapPlugin(Gimp.PlugIn):
             None,
         )
         procedure.set_image_types("RGBA")
-        procedure.set_menu_label(PROCEDURES[name].menu_label)
-        procedure.add_menu_path(PROCEDURES[name].menu_path)
+        procedure.set_menu_label(PROCEDURES[name].get_menu_label())
+        procedure.add_menu_path(PROCEDURES[name].get_menu_path())
         procedure.set_documentation(
-            PROCEDURES[name].documentation,
-            PROCEDURES[name].documentation,
+            PROCEDURES[name].get_documentation(),
+            PROCEDURES[name].get_documentation(),
             name
         )
         procedure.set_attribution(
             "Sam Mangham", "Sam Mangham", "2023"
         )
-        # print(f"Adding arguments")
         PROCEDURES[name].arguments(procedure)
-        # print(f"Procedure finished")
         return procedure
 
 

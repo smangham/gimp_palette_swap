@@ -2,6 +2,7 @@
 The common functions used by all palette swap procedures.
 """
 # -*- coding: utf-8 -*-
+# pylint: disable=R0913,R0917
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -60,20 +61,24 @@ def extract_linear_palette(
     :param progress_fraction: The % of the progress bar this functions should cover.
     :return: The palette, as a list of RGB colours.
     """
-    # print("Extracting linear palette...")
-
-    sorted_palette = []
-    for index_width in range(0, layer.get_width()):
-        sorted_palette.append(
-            layer.get_pixel(0, index_width).get_rgba()[0:3]
-        )
+    try:
+        sorted_palette = []
+        for index_width in range(0, layer.get_width()):
+            sorted_palette.append(
+                layer.get_pixel(index_width, 0).get_rgba()[0:3]
+            )
+    except Exception as e:
+        dimensions: Tuple[float, float] = (layer.get_width(), layer.get_height())
+        raise Exception(  # pylint: disable=W0719
+            f"Failed to extract palette from palette layer (dimensions: {dimensions}): {e}"
+        ) from e
 
     sorted_palette.reverse()
     Gimp.progress_update(current_progress + progress_fraction)
     return sorted_palette
 
 
-def extract_sorted_palette(
+def extract_sorted_palette(  # pylint: disable=R0914
     layer: Gimp.Layer,
     include_transparent: bool,
     count_threshold: int,
@@ -94,8 +99,6 @@ def extract_sorted_palette(
     :param count_threshold: Whether to ignore colours with < that many pixels.
     :return: The palette, as a list of RGB colours.
     """
-    # print("Extracting sorted palette...")
-
     palette_counts: defaultdict = defaultdict(int)
     progress_step: float = progress_fraction / layer.get_height()
 
@@ -104,17 +107,16 @@ def extract_sorted_palette(
             pixel_colour = layer.get_pixel(
                 index_width, index_height
             )
-            pixel_rgba = pixel_colour.get_rgba()
+            if pixel_colour:
+                pixel_rgba = pixel_colour.get_rgba()
 
-            if include_transparent or layer.has_alpha() and pixel_rgba[3] > 0:
-                palette_counts[pixel_rgba[0:3]] += 1
+                if include_transparent or layer.has_alpha() and pixel_rgba[3] > 0:
+                    palette_counts[pixel_rgba[0:3]] += 1
 
         Gimp.progress_update(current_progress + progress_step * index_height)
 
-    # print(f"Sorted through pixels to build defaultdict: {palette_counts}")
-
     # Now we've counted all the pixel colours, sort and discard outliers.
-    palette: Dict[Tuple[float, float, float]] = {}
+    palette: Dict[float, Tuple[float, float, float]] = {}
     for colour_rgb, colour_count in palette_counts.items():
         colour_brightness = rgb_to_brightness(colour_rgb)
 
@@ -123,18 +125,18 @@ def extract_sorted_palette(
                 colour_duplicate = palette[colour_brightness]
                 raise KeyError(
                     f"Multiple colours in layer with same brightness ({colour_brightness}): "
-                    f"{colour_rgb} ({colour_count} pixels) and {colour_duplicate} ({palette_counts[colour_duplicate]} pixels. "
+                    f"{colour_rgb} ({colour_count} pixels) and {colour_duplicate} "
+                    f"({palette_counts[colour_duplicate]} pixels. "
                     "Cannot automatically sort colours by brightness. "
                     "Try increasing the 'ignore colours with less than this many pixels' setting "
                     "to drop stray pixels."
                 )
-            else:
-                palette[colour_brightness] = colour_rgb
 
-    sorted_palette = [
+            palette[colour_brightness] = colour_rgb
+
+    return [
         palette[key] for key in sorted(list(palette.keys()))
     ]
-    return sorted_palette
 
 
 def apply_palette_map(
@@ -162,7 +164,6 @@ def apply_palette_map(
         sorted_palette_old,
         sorted_palette_new
     ):
-        # print(f"Filling {colour_old} with {colour_new}")
         progress_step: float = progress_fraction / len(sorted_palette_old)
 
         image.select_color(

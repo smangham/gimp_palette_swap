@@ -2,6 +2,7 @@
 For the meta-plugin PaletteSwapSimple
 """
 # -*- coding: utf-8 -*-
+# pylint: disable=R0913,R0917
 from typing import List, Tuple
 
 import gi
@@ -10,7 +11,7 @@ from gi.repository import Gimp
 gi.require_version('GimpUi', '3.0')
 from gi.repository import Gegl
 
-from palette_swap import extract_linear_palette, extract_sorted_palette, apply_palette_map
+from palette_swap import extract_linear_palette, extract_sorted_palette, apply_palette_map  # pylint: disable=C0413
 
 
 def palette_swap_simple(
@@ -22,14 +23,15 @@ def palette_swap_simple(
     count_threshold: int,
 ):
     """
-    Given a target layer, and a sample layer, replaces the palette of the target with that of the sample.
+    Given target and sample layers, replaces palette of target with that of the sample.
 
     :param image: The current image.
     :param layer_target: The target layer, to be re-coloured.
     :param layer_sample: The layer to take the colour palette from.
     :param include_transparent: Whether to sample colours from transparent pixels.
     :param count_threshold: Whether to ignore colours with < that many pixels.
-    :param light_first: Whether to match colours lightest-to-lightest first. Defaults to darkest-to-darkest.
+    :param light_first: Whether to match colours lightest-to-lightest first.
+        Defaults to darkest-to-darkest.
     """
     Gimp.progress_init(
         f"Swapping palette from {layer_sample.get_name()} onto {layer_target.get_name()}..."
@@ -38,33 +40,27 @@ def palette_swap_simple(
     # Remember current foreground
     original_foreground: Gegl.Color = Gimp.context_get_foreground()
 
-    # print("Got foreground...")
     # Set up an undo group, so the operation will be undone in one step.
     image.undo_group_start()
-    # print("Started Undo Group...")
 
     # Extract the palettes.
     Gimp.progress_init(
         f"Finding {layer_sample.get_name()} palette..."
     )
-    # print("Initialised progress bar...")
 
 
     if layer_sample.get_height() == 1:
-        # print("Extracting linear palette...")
         sorted_palette_new = extract_linear_palette(
             layer=layer_sample,
             current_progress=0, progress_fraction=0.4
         )
     else:
-        # print("Extracting sorted palette...")
         sorted_palette_new = extract_sorted_palette(
             layer=layer_sample,
             include_transparent=include_transparent,
             count_threshold=count_threshold,
             current_progress=0, progress_fraction=0.4
         )
-    # print("Found palette new...")
 
     Gimp.progress_init(
         f"Finding {layer_target.get_name()} palette..."
@@ -76,7 +72,6 @@ def palette_swap_simple(
         count_threshold=count_threshold,
         current_progress=0.4, progress_fraction=0.4
     )
-    # print("Found palette old...")
 
     if light_first:
         sorted_palette_old.reverse()
@@ -96,5 +91,3 @@ def palette_swap_simple(
 
     # Close the undo group.
     image.undo_group_end()
-
-

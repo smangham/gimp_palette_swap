@@ -10,7 +10,7 @@ from gi.repository import Gimp
 gi.require_version('GimpUi', '3.0')
 from gi.repository import Gegl
 
-from palette_swap import extract_linear_palette, apply_palette_map
+from palette_swap import extract_linear_palette, apply_palette_map  # pylint: disable=C0413
 
 
 def palette_swap_linear(
